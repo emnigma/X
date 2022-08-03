@@ -229,7 +229,7 @@ X.renderer3D = function() {
     'PROGRESSBAR_ENABLED': true,
     'PICKING_ENABLED': true,
     'ORDERING_ENABLED': true,
-    'STATISTICS_ENABLED': false,
+    'STATISTICS_ENABLED': true,
     'INTERMEDIATE_RENDERING': false
   };
 
