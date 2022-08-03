@@ -29,3 +29,6 @@ xtk.js
 
 # nfs
 *.nfs*
+
+# specific
+slices?.json
