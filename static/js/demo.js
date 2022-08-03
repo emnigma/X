@@ -3,14 +3,82 @@ goog.require('X.renderer3D')
 goog.require('X.renderer2D')
 goog.require('X.mesh')
 
-async function readJSON(file) {
+async function readJSON(file, slice) {
   var loaded_data
   await $.getJSON(file, function (json) {
-    console.log(json);
-    loaded_data = json.slices[165]  
+    loaded_data = json.slices[slice]
   })
 
   return loaded_data
+}
+
+function hex(c) {
+  var s = "0123456789abcdef";
+  var i = parseInt(c);
+  if (i == 0 || isNaN(c))
+    return "00";
+  i = Math.round(Math.min(Math.max(0, i), 255));
+  return s.charAt((i - i % 16) / 16) + s.charAt(i % 16);
+}
+
+/* Convert an RGB triplet to a hex string */
+function convertToHex(rgb) {
+  return hex(rgb[0]) + hex(rgb[1]) + hex(rgb[2]);
+}
+
+/* Remove '#' in color hex string */
+function trim(s) { return (s.charAt(0) == '#') ? s.substring(1, 7) : s }
+
+/* Convert a hex string to an RGB triplet */
+function convertToRGB(hex) {
+  var color = [];
+  color[0] = parseInt((trim(hex)).substring(0, 2), 16);
+  color[1] = parseInt((trim(hex)).substring(2, 4), 16);
+  color[2] = parseInt((trim(hex)).substring(4, 6), 16);
+  return color;
+}
+
+function generateColor(colorStart, colorEnd, colorCount) {
+
+  // The beginning of your gradient
+  var start = convertToRGB(colorStart);
+
+  // The end of your gradient
+  var end = convertToRGB(colorEnd);
+
+  // The number of colors to compute
+  var len = colorCount;
+
+  //Alpha blending amount
+  var alpha = 0.0;
+
+  var saida = [];
+
+  for (i = 0; i < len; i++) {
+    var c = [];
+    alpha += (1.0 / len);
+
+    c[0] = start[0] * alpha + (1 - alpha) * end[0];
+    c[1] = start[1] * alpha + (1 - alpha) * end[1];
+    c[2] = start[2] * alpha + (1 - alpha) * end[2];
+
+    saida.push(c);
+
+  }
+
+  return saida;
+
+}
+
+var tmp = generateColor('#000000', '#ff0ff0', 10);
+
+function hexToRgb(hex) {
+  var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : null;
 }
 
 async function readTextFile(file, _callback) {
@@ -69,22 +137,136 @@ window.onload = function () {
   sliceZ.orientation = 'Z';
   sliceZ.init();
 
-  var mockData = readJSON("static/data/slicesZ.json")
-    .then((given) => {
-      sliceZ.canvasTransformer = function (data) {
-        console.log(given)
-        given.vertexes.forEach(v => {
-          var p_x = Math.round(v.x)
-          var p_y = Math.round(v.y)
-    
-          // console.log(p_x, p_y)
-    
-          var index = (p_x + p_y * 255) * 4
-          data[index] = 255
-          data[index + 3] = 255
-        })
-      }
-    })
+  // readJSON("static/data/slicesZ.json", 127)
+  // .then((loaded_data) => {
+  //   loaded_data.vertexes.forEach(v => {
+  //     console.log(sliceZ.xy2ijk(v.x, v.y))
+  //   });
+  // })
+  var radius = 1
+  var radiusArray = [-1, 0, 1]
+  console.log(radiusArray)
+
+  function xy2buff(x, y) {
+    return (x + y * 255) * 4
+  }
+
+  // blue to red
+  let colors = generateColor("#0000ff", "#ff0000", 60)
+  // green to red
+  // let colors = generateColor("#00ff00", "#ff0000", 6)
+
+  console.log(colors)
+
+  function updateThicknessZ(slice) {
+
+    readJSON("static/data/slicesZ.json", slice)
+      .then((loaded_data) => {
+        sliceZ.canvasTransformer = function (data) {
+          loaded_data.vertexes.forEach(v => {
+
+            var p_x = Math.round(v.x)
+            var p_y = Math.round(v.y)
+
+            radiusArray.forEach(c_y => {
+              radiusArray.forEach(c_x => {
+                if (c_x * c_x + c_y * c_y <= radius * radius) {
+                  p_index = xy2buff(p_x + c_x, p_y + c_y)
+                  // opacity
+                  data[p_index] = 255
+                  // red
+                  data[p_index + 1] = colors[Math.round(v.thickness * 10)][0]
+                  // green
+                  data[p_index + 2] = colors[Math.round(v.thickness * 10)][1]
+                  // blue
+                  data[p_index + 3] = colors[Math.round(v.thickness * 10)][2]
+                }
+              });
+            });
+
+            // for(var c_y = radius * -1; c_y <= radius; c_y++) {
+            //   for(var c_x = radius * -1; c_y <= radius; c_x++) {
+            //     if(c_x*c_x+c_y*c_y <= radius*radius) {
+            //       p_index = xy2buff(p_x + c_x, p_y + c_y)
+            //       // red channel
+            //       data[p_index] = 255
+            //       data[p_index + 3] = 255
+            //     }
+            //   } 
+            // }
+            // console.log(v)
+
+            // var index = xy2buff(p_x, p_y)
+            // data[index] = 255
+            // data[index + 3] = 255
+          })
+        }
+      })
+  }
+
+  function updateThicknessY(slice) {
+
+    readJSON("static/data/slicesY.json", slice)
+      .then((loaded_data) => {
+        sliceZ.canvasTransformer = function (data) {
+          loaded_data.vertexes.forEach(v => {
+
+            var p_x = Math.round(v.x)
+            var p_y = Math.round(v.z)
+
+            radiusArray.forEach(c_y => {
+              radiusArray.forEach(c_x => {
+                if (c_x * c_x + c_y * c_y <= radius * radius) {
+                  p_index = xy2buff(p_x + c_x, p_y + c_y)
+                  // opacity
+                  data[p_index] = 255
+                  // red
+                  data[p_index + 1] = colors[Math.round(v.thickness * 10)][0]
+                  // green
+                  data[p_index + 2] = colors[Math.round(v.thickness * 10)][1]
+                  // blue
+                  data[p_index + 3] = colors[Math.round(v.thickness * 10)][2]
+                }
+              });
+            });
+          })
+        }
+      })
+  }
+
+  function updateThicknessX(slice) {
+
+    readJSON("static/data/slicesX.json", slice)
+      .then((loaded_data) => {
+        sliceZ.canvasTransformer = function (data) {
+          loaded_data.vertexes.forEach(v => {
+
+            var p_x = Math.round(v.y)
+            var p_y = Math.round(v.z)
+
+            radiusArray.forEach(c_y => {
+              radiusArray.forEach(c_x => {
+                if (c_x * c_x + c_y * c_y <= radius * radius) {
+                  p_index = xy2buff(p_x + c_x, p_y + c_y)
+                  // opacity
+                  data[p_index] = 255
+                  // red
+                  data[p_index + 1] = colors[Math.round(v.thickness * 10)][0]
+                  // green
+                  data[p_index + 2] = colors[Math.round(v.thickness * 10)][1]
+                  // blue
+                  data[p_index + 3] = colors[Math.round(v.thickness * 10)][2]
+                }
+              });
+            });
+          })
+        }
+      })
+  }
+
+  updateThicknessX(127)
+  updateThicknessY(127)
+  updateThicknessZ(127)
 
   //
   // THE VOLUME DATA
@@ -96,6 +278,7 @@ window.onload = function () {
   // volume.file = 'static/data/orig.mgz';
   // volume.file = 'static/data/wm.mgz';
   volume.file = 'static/data/brain.mgz';
+  // volume.file = 'static/data/referenceT1.nii';
 
   sliceX.add(volume);
   sliceX.render();
@@ -176,8 +359,21 @@ window.onload = function () {
         volume.range[1] - 1);
       var sliceZController = volumegui.add(volume, 'indexZ', 0,
         volume.range[2] - 1);
+
+      sliceXController.onChange(function (value) {
+        updateThicknessX(Math.round(value))
+      })
+      sliceYController.onChange(function (value) {
+        updateThicknessY(Math.round(value))
+      })
+      sliceZController.onChange(function (value) {
+        updateThicknessZ(Math.round(value))
+      })
+
       volumegui.open();
     }
     setupGUI()
+    console.log("(127, 127) to ijk")
+    console.log(sliceZ.xy2ijk(127, 127))
   }
 };
